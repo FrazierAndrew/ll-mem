@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Portrait Lab</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f0f0f; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+
+    header { padding: 14px 24px; border-bottom: 1px solid #222; display: flex; align-items: center; gap: 16px; background: #111; }
+    header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.04em; color: #fff; }
+    #conv-count { font-size: 12px; color: #666; margin-left: auto; }
+    #tier-badge { font-size: 11px; background: #1a2a1a; color: #4caf50; border: 1px solid #2d4a2d; padding: 3px 8px; border-radius: 4px; display: none; }
+
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Chat panel ── */
+    .chat-panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #222; }
+    #chat-history { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+    .msg { max-width: 80%; line-height: 1.55; font-size: 14px; }
+    .msg.user { align-self: flex-end; background: #1a2d4a; color: #c8ddf7; padding: 10px 14px; border-radius: 12px 12px 2px 12px; }
+    .msg.assistant { align-self: flex-start; background: #1e1e1e; color: #ddd; padding: 10px 14px; border-radius: 12px 12px 12px 2px; border: 1px solid #2a2a2a; }
+    #chat-input-area { padding: 16px; border-top: 1px solid #222; display: flex; gap: 10px; background: #111; }
+    #input { flex: 1; background: #1a1a1a; border: 1px solid #333; color: #e0e0e0; padding: 10px 14px; border-radius: 8px; font-size: 14px; resize: none; height: 44px; }
+    #input:focus { outline: none; border-color: #4a6cf7; }
+    #send { background: #4a6cf7; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-size: 14px; cursor: pointer; white-space: nowrap; }
+    #send:hover { background: #3a5ce7; }
+    #send:disabled { background: #2a2a2a; color: #555; cursor: not-allowed; }
+
+    /* ── Portrait panel ── */
+    .portrait-panel { width: 420px; display: flex; flex-direction: column; overflow: hidden; background: #0d0d0d; }
+    .portrait-tabs { display: flex; border-bottom: 1px solid #222; }
+    .tab { flex: 1; padding: 12px; font-size: 12px; font-weight: 500; text-align: center; cursor: pointer; color: #666; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    .tab.active { color: #4a6cf7; border-bottom-color: #4a6cf7; }
+    .portrait-content { flex: 1; overflow-y: auto; padding: 20px; }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    .section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #555; text-transform: uppercase; margin-bottom: 8px; margin-top: 20px; }
+    .section-label:first-child { margin-top: 0; }
+    .narrative { font-size: 13px; line-height: 1.7; color: #bbb; white-space: pre-wrap; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag { font-size: 11px; background: #1a1a2e; color: #8899cc; border: 1px solid #2a2a4a; padding: 3px 8px; border-radius: 20px; }
+    .tension-item, .pattern-item, .drift-item { font-size: 12px; line-height: 1.6; color: #bbb; padding: 8px 10px; background: #161616; border-left: 2px solid #333; margin-bottom: 6px; border-radius: 0 4px 4px 0; }
+    .tension-item { border-left-color: #5a3a3a; }
+    .pattern-item.new { border-left-color: #3a5a3a; }
+    .pattern-item.reinforced { border-left-color: #3a3a5a; }
+    .pattern-item.contradiction { border-left-color: #5a4a2a; }
+    .drift-item.shifting { border-left-color: #5a4a1a; }
+    .drift-item.emerging { border-left-color: #2a4a4a; }
+    .drift-item.consistent { border-left-color: #2a3a2a; }
+    .hypothesis { font-size: 12px; line-height: 1.7; color: #999; font-style: italic; padding: 12px; background: #161616; border-radius: 6px; }
+    .empty-state { color: #444; font-size: 13px; text-align: center; margin-top: 60px; }
+    .version-badge { font-size: 10px; color: #444; margin-top: 4px; }
+    .growth { font-size: 13px; line-height: 1.65; color: #8a9a8a; font-style: italic; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Portrait Lab</h1>
+  <span id="tier-badge"></span>
+  <span id="conv-count">0 conversations</span>
+</header>
+
+<div class="layout">
+  <!-- Chat -->
+  <div class="chat-panel">
+    <div id="chat-history"></div>
+    <div id="chat-input-area">
+      <textarea id="input" placeholder="Say something…" rows="1"></textarea>
+      <button id="send">Send</button>
+    </div>
+  </div>
+
+  <!-- Portrait -->
+  <div class="portrait-panel">
+    <div class="portrait-tabs">
+      <div class="tab active" data-tab="portrait">Portrait</div>
+      <div class="tab" data-tab="patterns">Patterns</div>
+      <div class="tab" data-tab="drift">Drift</div>
+    </div>
+    <div class="portrait-content">
+
+      <div class="tab-pane active" id="tab-portrait">
+        <div id="portrait-empty" class="empty-state">Portrait builds after 15 conversations.</div>
+        <div id="portrait-body" style="display:none">
+          <div class="version-badge" id="portrait-version"></div>
+          <div class="section-label">Narrative</div>
+          <div class="narrative" id="p-narrative"></div>
+          <div class="section-label">Implicit Values</div>
+          <div class="tag-list" id="p-values"></div>
+          <div class="section-label">Cognitive Style</div>
+          <div class="narrative" id="p-cognitive" style="font-style:italic;font-size:12px;color:#888"></div>
+          <div class="section-label">Persistent Tensions</div>
+          <div id="p-tensions"></div>
+          <div class="section-label">Growth Trajectory</div>
+          <div class="growth" id="p-growth"></div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="tab-patterns">
+        <div id="patterns-empty" class="empty-state">Patterns emerge after 5 conversations.</div>
+        <div id="patterns-body" style="display:none">
+          <div class="section-label">New Patterns</div>
+          <div id="pat-new"></div>
+          <div class="section-label">Reinforced</div>
+          <div id="pat-reinforced"></div>
+          <div class="section-label">Contradictions</div>
+          <div id="pat-contradictions"></div>
+          <div class="section-label">Emerging Themes</div>
+          <div class="tag-list" id="pat-themes"></div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="tab-drift">
+        <div id="drift-empty" class="empty-state">Drift detection begins at conversation 20.</div>
+        <div id="drift-body" style="display:none">
+          <div class="section-label">Shifting Patterns</div>
+          <div id="dr-shifting"></div>
+          <div class="section-label">Emerging (not in portrait)</div>
+          <div id="dr-emerging"></div>
+          <div class="section-label">Consistent With Portrait</div>
+          <div id="dr-consistent"></div>
+          <div class="section-label">Drift Hypothesis</div>
+          <div class="hypothesis" id="dr-hypothesis"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ── Chat ──────────────────────────────────────────────────────────────────
+  const input = document.getElementById('input');
+  const sendBtn = document.getElementById('send');
+  const history = document.getElementById('chat-history');
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+  sendBtn.addEventListener('click', sendMessage);
+
+  function addMessage(text, role) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    div.textContent = text;
+    history.appendChild(div);
+    history.scrollTop = history.scrollHeight;
+  }
+
+  async function sendMessage() {
+    const msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+    sendBtn.disabled = true;
+    addMessage(msg, 'user');
+    addMessage('…', 'assistant');
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Request failed');
+
+      history.lastChild.textContent = data.response;
+      document.getElementById('conv-count').textContent = data.conversation_count + ' conversations';
+
+      if (data.tiers_run && data.tiers_run.length > 1) {
+        const badge = document.getElementById('tier-badge');
+        badge.textContent = 'Analyzed: ' + data.tiers_run.filter(t => t !== 't1').join(', ').toUpperCase();
+        badge.style.display = 'inline';
+        setTimeout(() => badge.style.display = 'none', 4000);
+      }
+
+      await refreshInsights();
+    } catch (err) {
+      history.lastChild.textContent = err.message || 'Something went wrong.';
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  // ── Portrait & insights refresh ───────────────────────────────────────────
+  async function refreshInsights() {
+    const [portRes, insRes] = await Promise.all([fetch('/portrait'), fetch('/insights')]);
+    const portData = await portRes.json();
+    const insData = await insRes.json();
+
+    document.getElementById('conv-count').textContent = insData.conversation_count + ' conversations';
+
+    renderPortrait(portData.portrait);
+    renderPatterns(insData.latest_patterns);
+    renderDrift(insData.latest_drift);
+  }
+
+  function renderPortrait(p) {
+    if (!p) return;
+    document.getElementById('portrait-empty').style.display = 'none';
+    document.getElementById('portrait-body').style.display = 'block';
+    document.getElementById('portrait-version').textContent = 'Portrait v' + (p.generated_at_conversation ? `— built at conversation ${p.generated_at_conversation}` : '');
+    document.getElementById('p-narrative').textContent = p.narrative || '';
+    document.getElementById('p-cognitive').textContent = p.cognitive_style || '';
+    document.getElementById('p-growth').textContent = p.growth_trajectory || '';
+
+    const valEl = document.getElementById('p-values');
+    valEl.innerHTML = '';
+    (p.implicit_values || []).forEach(v => {
+      const span = document.createElement('span');
+      span.className = 'tag';
+      span.textContent = v;
+      valEl.appendChild(span);
+    });
+
+    const tensEl = document.getElementById('p-tensions');
+    tensEl.innerHTML = '';
+    (p.persistent_tensions || []).forEach(t => {
+      const div = document.createElement('div');
+      div.className = 'tension-item';
+      div.textContent = t;
+      tensEl.appendChild(div);
+    });
+  }
+
+  function renderPatterns(p) {
+    if (!p) return;
+    document.getElementById('patterns-empty').style.display = 'none';
+    document.getElementById('patterns-body').style.display = 'block';
+
+    renderList('pat-new', p.new_patterns || [], 'pattern-item new');
+    renderList('pat-reinforced', p.reinforced_patterns || [], 'pattern-item reinforced');
+    renderList('pat-contradictions', p.contradictions || [], 'pattern-item contradiction');
+
+    const themeEl = document.getElementById('pat-themes');
+    themeEl.innerHTML = '';
+    (p.emerging_themes || []).forEach(t => {
+      const span = document.createElement('span');
+      span.className = 'tag';
+      span.textContent = t;
+      themeEl.appendChild(span);
+    });
+  }
+
+  function renderDrift(d) {
+    if (!d) return;
+    document.getElementById('drift-empty').style.display = 'none';
+    document.getElementById('drift-body').style.display = 'block';
+
+    renderList('dr-shifting', d.shifting_patterns || [], 'drift-item shifting');
+    renderList('dr-emerging', d.emerging_not_in_portrait || [], 'drift-item emerging');
+    renderList('dr-consistent', d.consistent_with_portrait || [], 'drift-item consistent');
+    document.getElementById('dr-hypothesis').textContent = d.drift_hypothesis || '';
+  }
+
+  function renderList(id, items, cls) {
+    const el = document.getElementById(id);
+    el.innerHTML = '';
+    items.forEach(item => {
+      const div = document.createElement('div');
+      div.className = cls;
+      div.textContent = item;
+      el.appendChild(div);
+    });
+  }
+
+  // Load initial state
+  refreshInsights();
+</script>
+</body>
+</html>
