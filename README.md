@@ -1,8 +1,7 @@
 # ll-mem
 
-I’ve been interested in the many ways a chatbot can implement “memory.” What I really want is an LLM that occasionally notices something I haven’t...“you’ve become more pessimistic over the past six months”, and gives me that *wait, you’re kind of right* moment.
+What I really want is an LLM that occasionally notices something I haven’t...“you’ve become more pessimistic over the past six months”, \
 
-**ll-mem** is an afternoon experiment in tracking changes in mood over time: one small building block toward that kind of memory.
 
 ## Capture Tiers:
 
